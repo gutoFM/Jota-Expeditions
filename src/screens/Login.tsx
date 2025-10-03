@@ -38,45 +38,46 @@ export default function Login() {
       </View>
 
       {/* Área de Login */}
-      <View style={styles.content}>
-        <Text style={styles.title}>Sua aventura está próxima,</Text>
-        <Text style={styles.subtitle}>Faça login em sua conta!</Text>
+        <View style={styles.content}>
+            <Text style={styles.title}>Sua aventura está próxima,</Text>
+            <Text style={styles.subtitle}>Faça login em sua conta!</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Usuário"
-          value={username}
-          onChangeText={setUsername}
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-
-        <TouchableOpacity style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Entrar</Text>
-        </TouchableOpacity>
-
-        {/* Loader (pode usar ActivityIndicator) */}
-        {/* <ActivityIndicator size="large" color="#00ff00" /> */}
-        <View style={styles.helpText}>
-
-        </View>
-            <Text style={styles.helpText}>
-            Precisa de ajuda?{"\n"}Nos chame no WhatsApp!
-            </Text>
-
-            <TouchableOpacity onPress={handleWhatsapp}>
-            <Image 
-                source={require("../assets/whatsapp.png")} // Ícone do WhatsApp
-                style={styles.whatsappIcon}
+            <TextInput
+            style={styles.input}
+            placeholder="Usuário"
+            value={username}
+            onChangeText={setUsername}
             />
+
+            <TextInput
+            style={styles.input}
+            placeholder="Senha"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+            />
+
+            <TouchableOpacity style={styles.button} onPress={handleLogin}>
+            <Text style={styles.buttonText}>Entrar</Text>
             </TouchableOpacity>
-      </View>
+
+            {/* Loader (pode usar ActivityIndicator) */}
+            {/* <ActivityIndicator size="large" color="#00ff00" /> */}
+
+            <View style={styles.helpContainer}>
+                <Text style={styles.helpText}>
+                Precisa de ajuda?{"\n"}Nos chame no WhatsApp!
+                </Text>
+
+                <TouchableOpacity onPress={handleWhatsapp}>
+                <Image 
+                    source={require("../assets/whatsapp.png")} // Ícone do WhatsApp
+                    style={styles.whatsappIcon}
+                />
+                </TouchableOpacity>
+            </View>
+                
+        </View>
     </View>
   );
 }
@@ -92,8 +93,8 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    width: 120,
-    height: 120,
+    width: 185,
+    height: 159,
   },
 
   content: {
@@ -143,6 +144,13 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
     fontSize: 16,
+  },
+
+  helpContainer: {
+    flex: 1,
+    alignItems: "center",
+    padding: 20,
+    marginTop: 80,
   },
 
   helpText: {
