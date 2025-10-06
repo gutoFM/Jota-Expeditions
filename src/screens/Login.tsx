@@ -1,4 +1,7 @@
 import React, { useState } from "react";
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/types';
 import { 
   View, 
   Text, 
@@ -6,17 +9,42 @@ import {
   TouchableOpacity, 
   StyleSheet,
   Linking,
+  Alert,
   Image 
 } from "react-native";
 
+type Nav = NativeStackNavigationProp<RootStackParamList, "Login">;
+
 export default function Login() {
+  const navigation = useNavigation<Nav>();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   function handleLogin() {
-    // Aqui vai a lógica de autenticação (chamar API ou verificar local)
-    console.log("Usuário:", username, "Senha:", password);
-  }
+  // TODO: validar credenciais aqui
+  // Exemplo temporário de papel do usuário (troque pela resposta da sua API):
+  {/*const role: 'admin' | 'user' = 'admin';*/}
+
+
+  //Teste rápido: se username for "admin", é admin, senão user
+
+  const u = username.trim();
+  const p = password.trim();
+
+  if (!u || !p) {
+      Alert.alert("Campos obrigatórios", "Informe Usuário e Senha.");
+      return;
+    }
+
+   // CRITÉRIO TEMPORÁRIO DE DEMO:
+  const role: "admin" | "user" =
+    u.toLowerCase() === "admin" && p === "admin" ? "admin" : "user";
+
+  navigation.reset({
+    index: 0,
+    routes: [{ name: 'Home', params: { role } }],
+  });
+}
 
   function handleWhatsapp() {
     // Abre conversa com o WhatsApp do Jota
