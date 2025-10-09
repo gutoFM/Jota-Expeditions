@@ -25,7 +25,9 @@
   },
   "devDependencies": {
     "@types/expo__vector-icons": "^9.0.1",
+    "@types/node": "^24.7.0",
     "@types/react": "~19.1.0",
+    "expo-module-scripts": "^4.1.10",
     "typescript": "~5.9.2"
   },
   "private": true

@@ -1,8 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// src/lib/firebase.ts
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth/react-native';
+import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -14,12 +13,5 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
-
-// Persistência da sessão no React Native
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
-
+export const auth = getAuth(app);       // RN: persiste via AsyncStorage automaticamente
 export const db = getFirestore(app);
-// use a região das suas funções; utilização do cliente 'southamerica-east1' (São Paulo)
-export const functions = getFunctions(app, 'southamerica-east1');
