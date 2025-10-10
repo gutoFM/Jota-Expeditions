@@ -1,3 +1,4 @@
+/* eslint-disable require-jsdoc */
 /* eslint-disable max-len */
 import {onCall, CallableRequest, HttpsError} from "firebase-functions/v2/https";
 import {setGlobalOptions} from "firebase-functions/v2/options";
@@ -24,7 +25,6 @@ type CreatePayload = {
 const auth = getAuth();
 const db = getFirestore();
 
-// eslint-disable-next-line require-jsdoc
 function normalizeDob(dob: string): string {
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(dob)) {
     const parts = dob.split("/");
@@ -36,10 +36,9 @@ function normalizeDob(dob: string): string {
   return dob;
 }
 
-// eslint-disable-next-line require-jsdoc
 async function callerIsAdmin(uid: string): Promise<boolean> {
   const u = await auth.getUser(uid);
-  const role = (u.customClaims?.role as Role) || null;
+  const role = (u.customClaims?.role as Role) ?? null;
   return role === "admin";
 }
 
