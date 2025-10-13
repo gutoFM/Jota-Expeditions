@@ -12,39 +12,31 @@ import {
   Alert,
   Image 
 } from "react-native";
+import {useAuth} from "../contexts/AuthContext";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "Login">;
 
 export default function Login() {
   const navigation = useNavigation<Nav>();
-  const [username, setUsername] = useState("");
+  const [email, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  function handleLogin() {
-  // TODO: validar credenciais aqui
-  // Exemplo temporário de papel do usuário (troque pela resposta da sua API):
-  {/*const role: 'admin' | 'user' = 'admin';*/}
+  const {signIn} = useAuth();
 
-
-  //Teste rápido: se username for "admin", é admin, senão user
-
-  const u = username.trim();
+async function handleLogin() {
+  const u = email.trim(); // ou username, conforme seu campo
   const p = password.trim();
-
-  if (!u || !p) {
-      Alert.alert("Campos obrigatórios", "Informe Usuário e Senha.");
+    if (!u || !p) {
+      Alert.alert("Informe email e senha");
       return;
     }
-
-   // CRITÉRIO TEMPORÁRIO DE DEMO:
-  const role: "admin" | "user" =
-    u.toLowerCase() === "admin" && p === "admin" ? "admin" : "user";
-
-  navigation.reset({
-    index: 0,
-    routes: [{ name: 'Home', params: { role } }],
-  });
-}
+    try {
+      await signIn(u, p);
+      // ✅ NÃO navegue manualmente. O Routes vai renderizar Home ao detectar usuário logado.
+    } catch (e: any) {
+      Alert.alert("Falha no login", e?.message ?? "Tente novamente");
+    }
+  }
 
   function handleWhatsapp() {
     // Abre conversa com o WhatsApp do Jota
@@ -72,8 +64,8 @@ export default function Login() {
 
             <TextInput
             style={styles.input}
-            placeholder="Usuário"
-            value={username}
+            placeholder="Email"
+            value={email}
             onChangeText={setUsername}
             />
 

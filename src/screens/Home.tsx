@@ -17,44 +17,74 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/types';
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system"; // Mesmo que ja importado abaixo
+import { useAuth } from "../contexts/AuthContext";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
+// Importação dinâmica para evitar erro no Web e permitir imagens locais
+const {documentDirectory, cacheDirectory, getInfoAsync, makeDirectoryAsync, copyAsync, deleteAsync} = require("expo-file-system");
 
-const isAdmin = true; // Troque pela verificação real do papel do usuário
 
 type Announcement = {
   id: string;
   title: string;
   body: string;
-  imageUrl: string; // use URL por enquanto; depois podemos trocar para asset local ou picker
+  imageUrl: string; // http(s):// ou file://
   createdAt: number;
 };
 
 const STORAGE_KEY = "@jota_announcements";
+const GREEN = "#1FA83D";
+const CARD_BG = "#E6E6E6";
 
-export default function Home({ route }: Props) {
+// Base para salvar arquivos locais.
+// Em iOS/Android, documentDirectory existe.
+// No Web, pode ser null — aí mostramos um alerta quando tentar criar post.
+const BASE_DIR: string | null =
+  Platform.OS === "web" ? cacheDirectory ?? null : documentDirectory ?? null;
+
+const ANN_DIR: string | null = BASE_DIR ? `${BASE_DIR}announcements` : null;
+
+// DEBUG  — veja no Metro logs o que está vindo:
+console.log("FS base:", {
+  platform: Platform.OS,
+  documentDirectory: documentDirectory,
+  cacheDirectory: cacheDirectory,
+  BASE_DIR,
+  ANN_DIR,
+});
+
+export default function Home() {
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
+
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
-  const role = route.params?.role ?? 'user';
-  const isAdmin = role === 'admin';
 
   // Modal "Novo anúncio"
   const [modalVisible, setModalVisible] = useState(false);
   const [formTitle, setFormTitle] = useState("");
   const [formBody, setFormBody] = useState("");
-  const [formImageUrl, setFormImageUrl] = useState("");
+  const [formImageUri, setFormImageUri] = useState<string | null>(null);
+
+  async function ensureAnnDir() {
+  if (!ANN_DIR) return;
+  const info = await FileSystem.getInfoAsync(ANN_DIR);
+  if (!info.exists) {
+    await FileSystem.makeDirectoryAsync(ANN_DIR, { intermediates: true });
+  }
+}
 
   // Carrega anúncios persistidos
   useEffect(() => {
     (async () => {
       try {
+        await ensureAnnDir();
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
           setItems(JSON.parse(raw));
         } else {
-          // Seed opcional para desenvolvimento (troque as URLs pelas suas imagens)
+          // Seeds de exemplo (mantive http para você ver algo na 1ª execução)
           setItems([
             {
               id: "seed-1",
@@ -103,31 +133,91 @@ export default function Home({ route }: Props) {
   function openCreate() {
     setFormTitle("");
     setFormBody("");
-    setFormImageUrl("");
+    setFormImageUri(null);
     setModalVisible(true);
   }
 
-  function saveCreate() {
-    const title = formTitle.trim();
-    const body = formBody.trim();
-    const imageUrl = formImageUrl.trim();
-
-    if (!title || !body || !imageUrl) {
-      Alert.alert("Campos obrigatórios", "Preencha título, texto e imagem.");
-      return;
-    }
-
-    const newItem: Announcement = {
-      id: String(Date.now()),
-      title,
-      body,
-      imageUrl,
-      createdAt: Date.now(),
-    };
-
-    setItems((prev) => [newItem, ...prev]);
-    setModalVisible(false);
+  function extFromUri(uri: string): string {
+  try {
+    const clean = uri.split("?")[0];
+    const ext = clean.split(".").pop();
+    return ext?.toLowerCase() || "jpg";
+  } catch {
+    return "jpg";
   }
+  }
+
+async function pickImageFromGallery() {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== "granted") {
+    Alert.alert("Permissão negada", "Conceda acesso às fotos para escolher a imagem.");
+    return;
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    quality: 0.85,
+  });
+
+  if (result.canceled) return;
+
+  const asset = result.assets?.[0];
+  if (!asset?.uri) return;
+
+  // 1) Tentamos salvar na pasta do app (persistente)
+  if (ANN_DIR) {
+    try {
+      await ensureAnnDir();
+      const ext = extFromUri(asset.uri);
+      const dest = `${ANN_DIR}/${Date.now()}.${ext}`;
+      await FileSystem.copyAsync({ from: asset.uri, to: dest });
+      setFormImageUri(dest); // file://... persistente
+      return;
+    } catch (e) {
+      console.log("Falha ao copiar para ANN_DIR, usando fallback:", e);
+    }
+  }
+
+  // 2) Fallback: usa a própria URI do asset (funciona em Android/iOS).
+  // Observação: em alguns casos o Android fornece "content://"; o Image
+  // component ainda consegue renderizar. Persistência pode variar, mas te
+  // destrava agora.
+  setFormImageUri(asset.uri);
+}
+
+function saveCreate() {
+  const title = formTitle.trim();
+  const body = formBody.trim();
+
+  if (!title || !body || !formImageUri) {
+    Alert.alert("Campos obrigatórios", "Preencha título, texto e selecione a imagem.");
+    return;
+  }
+
+  const newItem: Announcement = {
+    id: String(Date.now()),
+    title,
+    body,
+    imageUrl: formImageUri,
+    createdAt: Date.now(),
+  };
+
+  setItems((prev) => [newItem, ...prev]);
+  setModalVisible(false);
+}
+
+  async function deleteLocalIfOwned(uri: string) {
+  if (!BASE_DIR) return;
+  if (uri.startsWith(BASE_DIR)) {
+    try {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (info.exists) {
+        await FileSystem.deleteAsync(uri, { idempotent: true });
+      }
+    } catch {}
+  }
+}
 
   function confirmDelete(id: string) {
     Alert.alert("Excluir anúncio", "Tem certeza que deseja excluir?", [
@@ -135,24 +225,25 @@ export default function Home({ route }: Props) {
       {
         text: "Excluir",
         style: "destructive",
-        onPress: () => setItems((prev) => prev.filter((x) => x.id !== id)),
+        onPress: async () => {
+          const victim = items.find((x) => x.id === id);
+          if (victim) await deleteLocalIfOwned(victim.imageUrl);
+          setItems((prev) => prev.filter((x) => x.id !== id));
+        },
       },
     ]);
   }
 
-  // Cabeçalho verde da Home (igual ao Figma)
   function Header() {
     return (
       <View style={styles.header}>
         <TouchableOpacity activeOpacity={0.7} style={styles.headerIconLeft}>
-          {/* Troque pelo seu ícone (assets) se preferir */}
           <Feather name="menu" size={26} color="#fff" />
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>Home</Text>
 
         <TouchableOpacity activeOpacity={0.7} style={styles.headerIconRight}>
-          {/* Substitua pelo logo do Jota que você já possui */}
           <Image
             source={require("../assets/logo-Jota.png")}
             style={styles.headerLogo}
@@ -253,13 +344,18 @@ export default function Home({ route }: Props) {
               onChangeText={setFormBody}
               multiline
             />
-            <TextInput
-              style={styles.input}
-              placeholder="URL da imagem (obrigatório)"
-              value={formImageUrl}
-              onChangeText={setFormImageUrl}
-              autoCapitalize="none"
-            />
+
+            {/* Seleção de imagem da galeria (local, sem URL) */}
+            <TouchableOpacity style={styles.pickBtn} onPress={pickImageFromGallery}>
+              <Feather name="image" size={18} color="#fff" />
+              <Text style={styles.pickBtnText}>
+                {formImageUri ? "Trocar imagem" : "Selecionar imagem"}
+              </Text>
+            </TouchableOpacity>
+
+            {formImageUri && (
+              <Image source={{ uri: formImageUri }} style={styles.preview} resizeMode="cover" />
+            )}
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -279,9 +375,6 @@ export default function Home({ route }: Props) {
   );
 }
 
-const GREEN = "#1FA83D"; // ajuste fino se quiser ficar idêntico ao seu Figma
-const CARD_BG = "#E6E6E6";
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
 
@@ -292,39 +385,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: {
-    color: "#fff",
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  headerIconLeft: {
-    position: "absolute",
-    left: 16,
-    top: "50%",
-    marginTop: -13,
-  },
-  headerIconRight: {
-    position: "absolute",
-    right: 16,
-    top: "50%",
-    marginTop: -18,
-  },
+  headerTitle: { color: "#fff", fontSize: 22, fontWeight: "700" },
+  headerIconLeft: { position: "absolute", left: 16, top: "50%", marginTop: -13 },
+  headerIconRight: { position: "absolute", right: 16, top: "50%", marginTop: -18 },
   headerLogo: { width: 36, height: 36 },
 
-  sectionTitleWrap: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#111",
-  },
+  sectionTitleWrap: { paddingHorizontal: 20, paddingVertical: 16 },
+  sectionTitle: { fontSize: 22, fontWeight: "700", color: "#111" },
 
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 32,
-  },
+  listContent: { paddingHorizontal: 16, paddingBottom: 32 },
 
   card: {
     borderRadius: 18,
@@ -337,26 +406,10 @@ const styles = StyleSheet.create({
     elevation: 3,
     overflow: "hidden",
   },
-  cardImage: {
-    width: "100%",
-    height: 190,
-  },
-  cardBody: {
-    backgroundColor: CARD_BG,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#111",
-    marginBottom: 6,
-  },
-  cardText: {
-    fontSize: 14.5,
-    color: "#444",
-    lineHeight: 20,
-  },
+  cardImage: { width: "100%", height: 190 },
+  cardBody: { backgroundColor: CARD_BG, paddingHorizontal: 16, paddingVertical: 14 },
+  cardTitle: { fontSize: 20, fontWeight: "800", color: "#111", marginBottom: 6 },
+  cardText: { fontSize: 14.5, color: "#444", lineHeight: 20 },
   trashButton: {
     position: "absolute",
     right: 12,
@@ -390,17 +443,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 20,
   },
-  modalBox: {
-    width: "100%",
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 16,
+
+  modalBox: { 
+    width: "100%", backgroundColor: "#fff", borderRadius: 14, padding: 16 
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 12,
+
+  modalTitle: { 
+    fontSize: 18, fontWeight: "700", marginBottom: 12
   },
+
   input: {
     borderWidth: 1,
     borderColor: "#d9d9d9",
@@ -410,12 +461,31 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: "#fff",
   },
-  modalActions: {
+
+  pickBtn: {
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: GREEN,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+    marginBottom: 10,
     flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 12,
-    marginTop: 4,
+    gap: 8,
   },
+
+  pickBtnText: { 
+    color: "#fff", fontWeight: "700" 
+  },
+
+  preview: { 
+    width: "100%", height: 160, borderRadius: 8, marginBottom: 10 
+  },
+
+  modalActions: {
+    flexDirection: "row", justifyContent: "flex-end", gap: 12, marginTop: 4 
+  },
+
   btn: {
     paddingHorizontal: 16,
     height: 42,
@@ -423,7 +493,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  btnPrimary: { backgroundColor: GREEN },
-  btnSecondary: { backgroundColor: "#eee" },
-  btnText: { color: "#fff", fontWeight: "700" },
+
+  btnPrimary: { 
+    backgroundColor: GREEN 
+  },
+
+  btnSecondary: {
+    backgroundColor: "#eee" 
+  },
+
+  btnText: {
+    color: "#fff", fontWeight: "700" 
+  },
+
 });
