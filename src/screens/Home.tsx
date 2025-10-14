@@ -379,18 +379,26 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
 
   header: {
-    height: 72,
+    height: 112,
     backgroundColor: GREEN,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
+
   headerTitle: { color: "#fff", fontSize: 22, fontWeight: "700" },
+
   headerIconLeft: { position: "absolute", left: 16, top: "50%", marginTop: -13 },
+
   headerIconRight: { position: "absolute", right: 16, top: "50%", marginTop: -18 },
-  headerLogo: { width: 36, height: 36 },
+  
+  headerLogo: { 
+    width: 38, 
+    height: 38 
+  },
 
   sectionTitleWrap: { paddingHorizontal: 20, paddingVertical: 16 },
+
   sectionTitle: { fontSize: 22, fontWeight: "700", color: "#111" },
 
   listContent: { paddingHorizontal: 16, paddingBottom: 32 },
@@ -406,10 +414,15 @@ const styles = StyleSheet.create({
     elevation: 3,
     overflow: "hidden",
   },
+
   cardImage: { width: "100%", height: 190 },
+
   cardBody: { backgroundColor: CARD_BG, paddingHorizontal: 16, paddingVertical: 14 },
+
   cardTitle: { fontSize: 20, fontWeight: "800", color: "#111", marginBottom: 6 },
+
   cardText: { fontSize: 14.5, color: "#444", lineHeight: 20 },
+
   trashButton: {
     position: "absolute",
     right: 12,
