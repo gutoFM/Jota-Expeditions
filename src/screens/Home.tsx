@@ -20,6 +20,9 @@ import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system"; // Mesmo que ja importado abaixo
 import { useAuth } from "../contexts/AuthContext";
+import { DrawerActions, useNavigation } from '@react-navigation/native';
+import {useSideMenu} from "../contexts/SideMenuContext";
+
 
 // Importação dinâmica para evitar erro no Web e permitir imagens locais
 const {documentDirectory, cacheDirectory, getInfoAsync, makeDirectoryAsync, copyAsync, deleteAsync} = require("expo-file-system");
@@ -55,6 +58,8 @@ console.log("FS base:", {
 });
 
 export default function Home() {
+  const {toggle} = useSideMenu();
+  
   const { role } = useAuth();
   const isAdmin = role === "admin";
 
@@ -67,13 +72,36 @@ export default function Home() {
   const [formBody, setFormBody] = useState("");
   const [formImageUri, setFormImageUri] = useState<string | null>(null);
 
-  async function ensureAnnDir() {
-  if (!ANN_DIR) return;
-  const info = await FileSystem.getInfoAsync(ANN_DIR);
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(ANN_DIR, { intermediates: true });
+  // Menu drawer estilo sanduíche
+  const navigation = useNavigation();
+
+  function openMenu() {
+    // 1) se este navigation tiver toggleDrawer, use
+    if (typeof (navigation as any).toggleDrawer === 'function') {
+      (navigation as any).toggleDrawer();
+      return;
+    }
+    // 2) senão, chame o DRAWER do PAI
+    const parent = navigation.getParent();
+    if (parent) {
+      if (typeof (parent as any).toggleDrawer === 'function') {
+        (parent as any).toggleDrawer();
+      } else {
+        parent.dispatch(DrawerActions.toggleDrawer());
+      }
+      return;
+    }
+    // 3) fallback: despacha a ação no próprio nav
+    navigation.dispatch(DrawerActions.toggleDrawer());
   }
-}
+
+  async function ensureAnnDir() {
+    if (!ANN_DIR) return;
+    const info = await FileSystem.getInfoAsync(ANN_DIR);
+    if (!info.exists) {
+      await FileSystem.makeDirectoryAsync(ANN_DIR, { intermediates: true });
+    }
+  }
 
   // Carrega anúncios persistidos
   useEffect(() => {
@@ -237,7 +265,10 @@ function saveCreate() {
   function Header() {
     return (
       <View style={styles.header}>
-        <TouchableOpacity activeOpacity={0.7} style={styles.headerIconLeft}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={styles.headerIconLeft}
+          onPress={toggle}>
           <Feather name="menu" size={26} color="#fff" />
         </TouchableOpacity>
 
@@ -391,7 +422,7 @@ const styles = StyleSheet.create({
   headerIconLeft: { position: "absolute", left: 16, top: "50%", marginTop: -13 },
 
   headerIconRight: { position: "absolute", right: 16, top: "50%", marginTop: -18 },
-  
+
   headerLogo: { 
     width: 38, 
     height: 38 
