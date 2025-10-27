@@ -18,10 +18,13 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system"; // Mesmo que ja importado abaixo
+import * as FileSystem from "expo-file-system";
 import { useAuth } from "../contexts/AuthContext";
-import { DrawerActions, useNavigation } from '@react-navigation/native';
-import {useSideMenu} from "../contexts/SideMenuContext";
+import type { DrawerScreenProps } from "@react-navigation/drawer";
+import type { DrawerParamList } from "../navigation/AppDrawer";
+import { DrawerNavigationProp } from '@react-navigation/drawer';
+
+
 
 
 // Importação dinâmica para evitar erro no Web e permitir imagens locais
@@ -40,26 +43,19 @@ const STORAGE_KEY = "@jota_announcements";
 const GREEN = "#1FA83D";
 const CARD_BG = "#E6E6E6";
 
-// Base para salvar arquivos locais.
-// Em iOS/Android, documentDirectory existe.
-// No Web, pode ser null — aí mostramos um alerta quando tentar criar post.
+
 const BASE_DIR: string | null =
   Platform.OS === "web" ? cacheDirectory ?? null : documentDirectory ?? null;
 
 const ANN_DIR: string | null = BASE_DIR ? `${BASE_DIR}announcements` : null;
 
-// DEBUG  — veja no Metro logs o que está vindo:
-console.log("FS base:", {
-  platform: Platform.OS,
-  documentDirectory: documentDirectory,
-  cacheDirectory: cacheDirectory,
-  BASE_DIR,
-  ANN_DIR,
-});
 
-export default function Home() {
-  const {toggle} = useSideMenu();
+
+type Props = DrawerScreenProps<DrawerParamList, "Home">;
+
+export default function Home({ navigation }: Props) {
   
+
   const { role } = useAuth();
   const isAdmin = role === "admin";
 
@@ -71,29 +67,6 @@ export default function Home() {
   const [formTitle, setFormTitle] = useState("");
   const [formBody, setFormBody] = useState("");
   const [formImageUri, setFormImageUri] = useState<string | null>(null);
-
-  // Menu drawer estilo sanduíche
-  const navigation = useNavigation();
-
-  function openMenu() {
-    // 1) se este navigation tiver toggleDrawer, use
-    if (typeof (navigation as any).toggleDrawer === 'function') {
-      (navigation as any).toggleDrawer();
-      return;
-    }
-    // 2) senão, chame o DRAWER do PAI
-    const parent = navigation.getParent();
-    if (parent) {
-      if (typeof (parent as any).toggleDrawer === 'function') {
-        (parent as any).toggleDrawer();
-      } else {
-        parent.dispatch(DrawerActions.toggleDrawer());
-      }
-      return;
-    }
-    // 3) fallback: despacha a ação no próprio nav
-    navigation.dispatch(DrawerActions.toggleDrawer());
-  }
 
   async function ensureAnnDir() {
     if (!ANN_DIR) return;
@@ -268,7 +241,7 @@ function saveCreate() {
         <TouchableOpacity
           activeOpacity={0.7}
           style={styles.headerIconLeft}
-          onPress={toggle}>
+          onPress={() => navigation.openDrawer()}>
           <Feather name="menu" size={26} color="#fff" />
         </TouchableOpacity>
 
