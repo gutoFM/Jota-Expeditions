@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
 
   sectionTitleWrap: { paddingHorizontal: 20, paddingVertical: 16 },
 
-  sectionTitle: { fontSize: 22, fontWeight: "700", color: "#111" },
+  sectionTitle: { fontSize: 22, fontWeight: "700", color: "#111", alignSelf: "center" },
 
   listContent: { paddingHorizontal: 16, paddingBottom: 32 },
 
