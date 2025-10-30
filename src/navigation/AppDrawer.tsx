@@ -37,7 +37,7 @@ function CustomDrawerContent(props: any) {
   ] as const;
 
   return (
-    <DrawerContentScrollView {...props} style={{ backgroundColor: BG }} contentContainerStyle={{ flex: 1, paddingTop: 24 }}>
+    <DrawerContentScrollView {...props} style={{ backgroundColor: BG }} contentContainerStyle={{ flex: 1, paddingTop: 41 }}>
       <Text style={styles.menuTitle}>Menu</Text>
 
       <View style={{ paddingVertical: 6 }}>
@@ -90,10 +90,10 @@ export default function AppDrawer() {
 }
 
 const styles = StyleSheet.create({
-  menuTitle: { color: "#DDE9E0", fontSize: 22, fontWeight: "800", marginLeft: 20, marginBottom: 14 },
-  row: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 18, borderRadius: 12, marginHorizontal: 10, marginVertical: 3 },
+  menuTitle: { color: "#DDE9E0", fontSize: 22, fontWeight: "800", marginLeft: 20, marginBottom: 30 },
+  row: { flexDirection: "row", alignItems: "center",  paddingVertical: 12, paddingHorizontal: 18, borderRadius: 12,  marginHorizontal: 10, marginVertical: 10 },
   rowActive: { backgroundColor: "rgba(255,255,255,0.10)" },
   rowIcon: { width: 28, alignItems: "center", marginRight: 10 },
-  rowLabel: { color: "#E7F2EA", fontSize: 18, fontWeight: "700" },
+  rowLabel: { color: "#E7F2EA", fontSize: 21, fontWeight: "700" },
   rowLabelActive: { color: "#fff" },
 });

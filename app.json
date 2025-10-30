@@ -6,6 +6,9 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "extra": {
+      "ADMIN_EMAIL": "contato@jotaexpedicoes.com.br"
+    },
     "splash": {
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
