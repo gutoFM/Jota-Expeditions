@@ -8,6 +8,7 @@ import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Home from "../screens/Home";
 import Partners from "../screens/Partners";
 import Contact from "../screens/Contact";
+import About from "../screens/About";
 import { useAuth } from "../contexts/AuthContext";
 
 export type DrawerParamList = {
@@ -83,7 +84,7 @@ export default function AppDrawer() {
       <Drawer.Screen name="Eventos" component={() => null} />
       <Drawer.Screen name="Parceiros" component={Partners} />
       <Drawer.Screen name="Contato" component={Contact} />
-      <Drawer.Screen name="Sobre" component={() => null} />
+      <Drawer.Screen name="Sobre" component={About} />
       <Drawer.Screen name="Perfil" component={() => null} />
       <Drawer.Screen name="Clube Jota" component={() => null} />
     </Drawer.Navigator>
