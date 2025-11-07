@@ -9,6 +9,7 @@ import Home from "../screens/Home";
 import Partners from "../screens/Partners";
 import Contact from "../screens/Contact";
 import About from "../screens/About";
+import Events from "../screens/Events";
 import { useAuth } from "../contexts/AuthContext";
 
 export type DrawerParamList = {
@@ -81,7 +82,7 @@ export default function AppDrawer() {
       drawerContent={(p) => <CustomDrawerContent {...p} />}
     >
       <Drawer.Screen name="Home" component={Home} />
-      <Drawer.Screen name="Eventos" component={() => null} />
+      <Drawer.Screen name="Eventos" component={Events} />
       <Drawer.Screen name="Parceiros" component={Partners} />
       <Drawer.Screen name="Contato" component={Contact} />
       <Drawer.Screen name="Sobre" component={About} />

@@ -111,10 +111,14 @@ export default function About({ navigation }: Props) {
           <View style={styles.labelWrap}>
             <Text style={styles.label}>Desenvolvedor:</Text>
           </View>
-          <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => openLink("https://www.linkedin.com/in/augustofisco")}
+            activeOpacity={0.8}
+          >
             <FontAwesome5 name="code" size={20} color="#000" style={styles.cardIcon} />
-            <Text style={styles.cardText}>Augusto Milreu Fisco</Text>
-          </View>
+            <Text style={styles.cardText}>Augusto Fisco Milreu</Text>
+          </TouchableOpacity>
           
           
         </View>
