@@ -217,13 +217,13 @@ export default function Profile({ navigation }: any) {
   // UI
   function Header() {
     return (
-      <View style={{ height: 72, backgroundColor: GREEN, flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+      <View style={{ height: 112, backgroundColor: GREEN, flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
         <TouchableOpacity style={{ position: "absolute", left: 16, top: "50%", marginTop: -13 }} onPress={() => navigation.openDrawer?.()} activeOpacity={0.7}>
           <Feather name="menu" size={26} color="#fff" />
         </TouchableOpacity>
         <Text style={{ color: "#fff", fontSize: 22, fontWeight: "700" }}>Perfil</Text>
         <View style={{ position: "absolute", right: 16, top: "50%", marginTop: -18 }}>
-          <Image source={require("../assets/logo-Jota.png")} style={{ width: 36, height: 36 }} resizeMode="contain" />
+          <Image source={require("../assets/logo-Jota.png")} style={{ width: 38, height: 38 }} resizeMode="contain" />
         </View>
       </View>
     );
