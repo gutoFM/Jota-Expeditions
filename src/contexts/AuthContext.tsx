@@ -8,14 +8,14 @@ import {
 import {auth, db} from '../lib/firebase';
 import {doc, onSnapshot} from 'firebase/firestore';
 
-type Role = 'admin'|'user'|'staff'|null;
+type Role = 'admin'|'user'|null;
 
 type Profile = {
   email?: string;
   phone?: string;
   dob?: string;        // 'AAAA-MM-DD' - dob = date of birth
   carModel?: string;
-  role?: 'admin'|'user'|'staff';
+  role?: 'admin'|'user';
   isActive?: boolean;
 } | null;
 
