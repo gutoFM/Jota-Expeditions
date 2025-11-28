@@ -14,49 +14,64 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Linking,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
 import { useAuth } from "../contexts/AuthContext";
 import type { DrawerScreenProps } from "@react-navigation/drawer";
 import type { DrawerParamList } from "../navigation/AppDrawer";
-import { DrawerNavigationProp } from '@react-navigation/drawer';
 
+// Firebase imports
+import { db, storage } from "../lib/firebase";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  deleteDoc,
+  doc,
+  Timestamp,
+  updateDoc,
+} from "firebase/firestore";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
 
-
-
-// Importação dinâmica para evitar erro no Web e permitir imagens locais
-const {documentDirectory, cacheDirectory, getInfoAsync, makeDirectoryAsync, copyAsync, deleteAsync} = require("expo-file-system");
-
-
+// =====================
+// TIPOS
+// =====================
 type Announcement = {
   id: string;
   title: string;
   body: string;
-  imageUrl: string; // http(s):// ou file://
-  createdAt: number;
+  imageUrl: string;
+  imagePath?: string; // caminho no Storage para deletar
+  linkExterno?: string;
+  dataValidade?: Date | null;
+  isActive: boolean;
+  createdAt: Date;
+  createdBy: string;
 };
-
-const STORAGE_KEY = "@jota_announcements";
-const GREEN = "#1FA83D";
-const CARD_BG = "#E6E6E6";
-
-
-const BASE_DIR: string | null =
-  Platform.OS === "web" ? cacheDirectory ?? null : documentDirectory ?? null;
-
-const ANN_DIR: string | null = BASE_DIR ? `${BASE_DIR}announcements` : null;
-
-
 
 type Props = DrawerScreenProps<DrawerParamList, "Home">;
 
-export default function Home({ navigation }: Props) {
-  
+// =====================
+// CONSTANTES
+// =====================
+const GREEN = "#1FA83D";
+const CARD_BG = "#E6E6E6";
 
-  const { role } = useAuth();
+// =====================
+// COMPONENTE PRINCIPAL
+// =====================
+export default function Home({ navigation }: Props) {
+  const { user, role } = useAuth();
   const isAdmin = role === "admin";
 
   const [items, setItems] = useState<Announcement[]>([]);
@@ -66,174 +81,233 @@ export default function Home({ navigation }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [formTitle, setFormTitle] = useState("");
   const [formBody, setFormBody] = useState("");
+  const [formLinkExterno, setFormLinkExterno] = useState("");
+  const [formDataValidade, setFormDataValidade] = useState(""); // DD/MM/AAAA
   const [formImageUri, setFormImageUri] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  async function ensureAnnDir() {
-    if (!ANN_DIR) return;
-    const info = await FileSystem.getInfoAsync(ANN_DIR);
-    if (!info.exists) {
-      await FileSystem.makeDirectoryAsync(ANN_DIR, { intermediates: true });
+  // =====================
+  // LISTENER FIRESTORE (tempo real)
+  // =====================
+  useEffect(() => {
+    // Query: apenas anúncios ativos, ordenados por data de criação
+    const q = query(
+      collection(db, "announcements"),
+      where("isActive", "==", true),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: Announcement[] = [];
+        const now = new Date();
+
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          
+          // Converter Timestamps para Date
+          const createdAt = data.createdAt?.toDate?.() || new Date();
+          const dataValidade = data.dataValidade?.toDate?.() || null;
+
+          // Verificar se expirou
+          if (dataValidade && dataValidade < now) {
+            // Anúncio expirado - marcar como inativo (não mostrar)
+            // Opcionalmente, poderíamos atualizar isActive para false aqui
+            return;
+          }
+
+          list.push({
+            id: docSnap.id,
+            title: data.title || "",
+            body: data.body || "",
+            imageUrl: data.imageUrl || "",
+            imagePath: data.imagePath,
+            linkExterno: data.linkExterno,
+            dataValidade,
+            isActive: data.isActive ?? true,
+            createdAt,
+            createdBy: data.createdBy || "",
+          });
+        });
+
+        setItems(list);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Erro ao carregar anúncios:", error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // =====================
+  // FUNÇÕES AUXILIARES
+  // =====================
+  
+  // Converte DD/MM/AAAA para Date
+  function parseDataValidade(str: string): Date | null {
+    if (!str.trim()) return null;
+    const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!match) return null;
+    const [, dd, mm, yyyy] = match;
+    const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd), 23, 59, 59);
+    if (isNaN(date.getTime())) return null;
+    return date;
+  }
+
+  // Gera nome único para arquivo
+  function generateFileName(uri: string): string {
+    const ext = uri.split(".").pop()?.toLowerCase() || "jpg";
+    return `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+  }
+
+  // Upload de imagem para Firebase Storage
+  async function uploadImage(uri: string): Promise<{ url: string; path: string }> {
+    const fileName = generateFileName(uri);
+    const storagePath = `announcements/${fileName}`;
+    const storageRef = ref(storage, storagePath);
+
+    // Converter URI para blob
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    // Upload
+    await uploadBytes(storageRef, blob);
+
+    // Obter URL pública
+    const downloadUrl = await getDownloadURL(storageRef);
+
+    return { url: downloadUrl, path: storagePath };
+  }
+
+  // Deletar imagem do Storage
+  async function deleteImage(path: string): Promise<void> {
+    if (!path) return;
+    try {
+      const storageRef = ref(storage, path);
+      await deleteObject(storageRef);
+    } catch (e) {
+      console.log("Erro ao deletar imagem (pode já não existir):", e);
     }
   }
 
-  // Carrega anúncios persistidos
-  useEffect(() => {
-    (async () => {
-      try {
-        await ensureAnnDir();
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          setItems(JSON.parse(raw));
-        } else {
-          // Seeds de exemplo (mantive http para você ver algo na 1ª execução)
-          setItems([
-            {
-              id: "seed-1",
-              title: "Expedição da Placa – 23/08",
-              body:
-                "Somente com Jota Expedições você encontra passeios 4x4 com supervisão e instrução que precisa para aprender mais e se sentir mais seguro.",
-              imageUrl:
-                "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=1600&auto=format&fit=crop",
-              createdAt: Date.now() - 1000 * 60 * 60 * 24,
-            },
-            {
-              id: "seed-2",
-              title: "Estrada Real – 13/08 à 17/08",
-              body:
-                "Tire seu 4x4 da garagem, leve a família para uma imersão na natureza e curta paisagens incríveis com segurança e orientação.",
-              imageUrl:
-                "https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1600&auto=format&fit=crop",
-              createdAt: Date.now() - 1000 * 60 * 60 * 48,
-            },
-          ]);
-        }
-      } catch (e) {
-        console.log("Erro lendo anúncios:", e);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  // Persiste sempre que mudar
-  useEffect(() => {
-    (async () => {
-      try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-      } catch (e) {
-        console.log("Erro salvando anúncios:", e);
-      }
-    })();
-  }, [items]);
-
-  const sorted = useMemo(
-    () => [...items].sort((a, b) => b.createdAt - a.createdAt),
-    [items]
-  );
-
+  // =====================
+  // AÇÕES DO MODAL
+  // =====================
+  
   function openCreate() {
     setFormTitle("");
     setFormBody("");
+    setFormLinkExterno("");
+    setFormDataValidade("");
     setFormImageUri(null);
     setModalVisible(true);
   }
 
-  function extFromUri(uri: string): string {
-  try {
-    const clean = uri.split("?")[0];
-    const ext = clean.split(".").pop();
-    return ext?.toLowerCase() || "jpg";
-  } catch {
-    return "jpg";
-  }
-  }
-
-async function pickImageFromGallery() {
-  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== "granted") {
-    Alert.alert("Permissão negada", "Conceda acesso às fotos para escolher a imagem.");
-    return;
-  }
-
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    allowsEditing: true,
-    quality: 0.85,
-  });
-
-  if (result.canceled) return;
-
-  const asset = result.assets?.[0];
-  if (!asset?.uri) return;
-
-  // 1) Tentamos salvar na pasta do app (persistente)
-  if (ANN_DIR) {
-    try {
-      await ensureAnnDir();
-      const ext = extFromUri(asset.uri);
-      const dest = `${ANN_DIR}/${Date.now()}.${ext}`;
-      await FileSystem.copyAsync({ from: asset.uri, to: dest });
-      setFormImageUri(dest); // file://... persistente
+  async function pickImageFromGallery() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permissão negada", "Conceda acesso às fotos para escolher a imagem.");
       return;
-    } catch (e) {
-      console.log("Falha ao copiar para ANN_DIR, usando fallback:", e);
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+    });
+
+    if (result.canceled) return;
+
+    const asset = result.assets?.[0];
+    if (asset?.uri) {
+      setFormImageUri(asset.uri);
     }
   }
 
-  // 2) Fallback: usa a própria URI do asset (funciona em Android/iOS).
-  // Observação: em alguns casos o Android fornece "content://"; o Image
-  // component ainda consegue renderizar. Persistência pode variar, mas te
-  // destrava agora.
-  setFormImageUri(asset.uri);
-}
+  async function saveCreate() {
+    const title = formTitle.trim();
+    const body = formBody.trim();
 
-function saveCreate() {
-  const title = formTitle.trim();
-  const body = formBody.trim();
+    if (!title || !body || !formImageUri) {
+      Alert.alert("Campos obrigatórios", "Preencha título, texto e selecione a imagem.");
+      return;
+    }
 
-  if (!title || !body || !formImageUri) {
-    Alert.alert("Campos obrigatórios", "Preencha título, texto e selecione a imagem.");
-    return;
-  }
+    // Validar data de validade se preenchida
+    const dataValidade = parseDataValidade(formDataValidade);
+    if (formDataValidade.trim() && !dataValidade) {
+      Alert.alert("Data inválida", "Use o formato DD/MM/AAAA para a data de validade.");
+      return;
+    }
 
-  const newItem: Announcement = {
-    id: String(Date.now()),
-    title,
-    body,
-    imageUrl: formImageUri,
-    createdAt: Date.now(),
-  };
+    setSaving(true);
 
-  setItems((prev) => [newItem, ...prev]);
-  setModalVisible(false);
-}
-
-  async function deleteLocalIfOwned(uri: string) {
-  if (!BASE_DIR) return;
-  if (uri.startsWith(BASE_DIR)) {
     try {
-      const info = await FileSystem.getInfoAsync(uri);
-      if (info.exists) {
-        await FileSystem.deleteAsync(uri, { idempotent: true });
-      }
-    } catch {}
-  }
-}
+      // 1. Upload da imagem
+      const { url: imageUrl, path: imagePath } = await uploadImage(formImageUri);
 
-  function confirmDelete(id: string) {
+      // 2. Criar documento no Firestore
+      await addDoc(collection(db, "announcements"), {
+        title,
+        body,
+        imageUrl,
+        imagePath,
+        linkExterno: formLinkExterno.trim() || null,
+        dataValidade: dataValidade ? Timestamp.fromDate(dataValidade) : null,
+        isActive: true,
+        createdAt: Timestamp.now(),
+        createdBy: user?.uid || "",
+      });
+
+      setModalVisible(false);
+      Alert.alert("Sucesso", "Anúncio criado com sucesso!");
+    } catch (error: any) {
+      console.error("Erro ao criar anúncio:", error);
+      Alert.alert("Erro", error.message || "Não foi possível criar o anúncio.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmDelete(item: Announcement) {
     Alert.alert("Excluir anúncio", "Tem certeza que deseja excluir?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Excluir",
         style: "destructive",
         onPress: async () => {
-          const victim = items.find((x) => x.id === id);
-          if (victim) await deleteLocalIfOwned(victim.imageUrl);
-          setItems((prev) => prev.filter((x) => x.id !== id));
+          try {
+            // 1. Deletar imagem do Storage
+            if (item.imagePath) {
+              await deleteImage(item.imagePath);
+            }
+
+            // 2. Deletar documento do Firestore
+            await deleteDoc(doc(db, "announcements", item.id));
+          } catch (error: any) {
+            console.error("Erro ao excluir:", error);
+            Alert.alert("Erro", "Não foi possível excluir o anúncio.");
+          }
         },
       },
     ]);
   }
+
+  // Abrir link externo
+  function openLinkExterno(url: string) {
+    if (!url) return;
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Erro", "Não foi possível abrir o link.");
+    });
+  }
+
+  // =====================
+  // COMPONENTES DE UI
+  // =====================
 
   function Header() {
     return (
@@ -241,7 +315,8 @@ function saveCreate() {
         <TouchableOpacity
           activeOpacity={0.7}
           style={styles.headerIconLeft}
-          onPress={() => navigation.openDrawer()}>
+          onPress={() => navigation.openDrawer()}
+        >
           <Feather name="menu" size={26} color="#fff" />
         </TouchableOpacity>
 
@@ -267,6 +342,8 @@ function saveCreate() {
   }
 
   function Card({ item }: { item: Announcement }) {
+    const hasLink = !!item.linkExterno;
+
     return (
       <View style={styles.card}>
         <Image
@@ -278,28 +355,55 @@ function saveCreate() {
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle}>{item.title}</Text>
           <Text style={styles.cardText}>{item.body}</Text>
+
+          {/* Botão de link externo */}
+          {hasLink && (
+            <TouchableOpacity
+              style={styles.linkBtn}
+              onPress={() => openLinkExterno(item.linkExterno!)}
+              activeOpacity={0.8}
+            >
+              <Feather name="external-link" size={16} color="#fff" />
+              <Text style={styles.linkBtnText}>Saiba mais</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
+        {/* Botão de excluir (só admin) */}
         {isAdmin && (
           <TouchableOpacity
             style={styles.trashButton}
-            onPress={() => confirmDelete(item.id)}
+            onPress={() => confirmDelete(item)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Feather name="trash-2" size={18} color="#111" />
           </TouchableOpacity>
         )}
+
+        {/* Indicador de validade (se tiver data) */}
+        {item.dataValidade && (
+          <View style={styles.validadeBadge}>
+            <Text style={styles.validadeText}>
+              Até {item.dataValidade.toLocaleDateString("pt-BR")}
+            </Text>
+          </View>
+        )}
       </View>
     );
   }
+
+  // =====================
+  // RENDER
+  // =====================
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" />
         <Header />
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="large" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={GREEN} />
+          <Text style={styles.loadingText}>Carregando anúncios...</Text>
         </View>
       </SafeAreaView>
     );
@@ -311,9 +415,15 @@ function saveCreate() {
       <Header />
 
       <FlatList
-        data={sorted}
+        data={items}
         keyExtractor={(it) => it.id}
         ListHeaderComponent={<SectionTitle />}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Feather name="inbox" size={48} color="#ccc" />
+            <Text style={styles.emptyText}>Nenhum anúncio disponível</Text>
+          </View>
+        }
         renderItem={({ item }) => <Card item={item} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -340,17 +450,43 @@ function saveCreate() {
               placeholder="Título (ex.: Expedição da Placa – 23/08)"
               value={formTitle}
               onChangeText={setFormTitle}
+              editable={!saving}
             />
+
             <TextInput
               style={[styles.input, { height: 100, textAlignVertical: "top" }]}
               placeholder="Texto do anúncio"
               value={formBody}
               onChangeText={setFormBody}
               multiline
+              editable={!saving}
             />
 
-            {/* Seleção de imagem da galeria (local, sem URL) */}
-            <TouchableOpacity style={styles.pickBtn} onPress={pickImageFromGallery}>
+            <TextInput
+              style={styles.input}
+              placeholder="Link externo (opcional)"
+              value={formLinkExterno}
+              onChangeText={setFormLinkExterno}
+              autoCapitalize="none"
+              keyboardType="url"
+              editable={!saving}
+            />
+
+            <TextInput
+              style={styles.input}
+              placeholder="Data de validade DD/MM/AAAA (opcional)"
+              value={formDataValidade}
+              onChangeText={setFormDataValidade}
+              keyboardType="numeric"
+              editable={!saving}
+            />
+
+            {/* Seleção de imagem da galeria */}
+            <TouchableOpacity
+              style={[styles.pickBtn, saving && styles.pickBtnDisabled]}
+              onPress={pickImageFromGallery}
+              disabled={saving}
+            >
               <Feather name="image" size={18} color="#fff" />
               <Text style={styles.pickBtnText}>
                 {formImageUri ? "Trocar imagem" : "Selecionar imagem"}
@@ -365,11 +501,21 @@ function saveCreate() {
               <TouchableOpacity
                 style={[styles.btn, styles.btnSecondary]}
                 onPress={() => setModalVisible(false)}
+                disabled={saving}
               >
                 <Text style={[styles.btnText, { color: "#111" }]}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={saveCreate}>
-                <Text style={styles.btnText}>Salvar</Text>
+
+              <TouchableOpacity
+                style={[styles.btn, styles.btnPrimary, saving && styles.btnDisabled]}
+                onPress={saveCreate}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.btnText}>Salvar</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -379,6 +525,9 @@ function saveCreate() {
   );
 }
 
+// =====================
+// ESTILOS
+// =====================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
 
@@ -391,21 +540,20 @@ const styles = StyleSheet.create({
   },
 
   headerTitle: { color: "#fff", fontSize: 22, fontWeight: "700" },
-
   headerIconLeft: { position: "absolute", left: 16, top: "50%", marginTop: -13 },
-
   headerIconRight: { position: "absolute", right: 16, top: "50%", marginTop: -18 },
-
-  headerLogo: { 
-    width: 38, 
-    height: 38 
-  },
+  headerLogo: { width: 38, height: 38 },
 
   sectionTitleWrap: { paddingHorizontal: 20, paddingVertical: 16 },
-
   sectionTitle: { fontSize: 22, fontWeight: "700", color: "#111", alignSelf: "center" },
 
   listContent: { paddingHorizontal: 16, paddingBottom: 32 },
+
+  loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingText: { marginTop: 12, color: "#666", fontSize: 14 },
+
+  emptyContainer: { alignItems: "center", marginTop: 60 },
+  emptyText: { marginTop: 12, color: "#999", fontSize: 16 },
 
   card: {
     borderRadius: 18,
@@ -427,6 +575,20 @@ const styles = StyleSheet.create({
 
   cardText: { fontSize: 14.5, color: "#444", lineHeight: 20 },
 
+  linkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: GREEN,
+    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 6,
+  },
+
+  linkBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+
   trashButton: {
     position: "absolute",
     right: 12,
@@ -435,6 +597,18 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 6,
   },
+
+  validadeBadge: {
+    position: "absolute",
+    left: 12,
+    top: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+
+  validadeText: { color: "#fff", fontSize: 11, fontWeight: "600" },
 
   fab: {
     position: "absolute",
@@ -461,13 +635,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
-  modalBox: { 
-    width: "100%", backgroundColor: "#fff", borderRadius: 14, padding: 16 
-  },
+  modalBox: { width: "100%", backgroundColor: "#fff", borderRadius: 14, padding: 16 },
 
-  modalTitle: { 
-    fontSize: 18, fontWeight: "700", marginBottom: 12
-  },
+  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 12 },
 
   input: {
     borderWidth: 1,
@@ -491,17 +661,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
-  pickBtnText: { 
-    color: "#fff", fontWeight: "700" 
-  },
+  pickBtnDisabled: { backgroundColor: "#aaa" },
 
-  preview: { 
-    width: "100%", height: 160, borderRadius: 8, marginBottom: 10 
-  },
+  pickBtnText: { color: "#fff", fontWeight: "700" },
 
-  modalActions: {
-    flexDirection: "row", justifyContent: "flex-end", gap: 12, marginTop: 4 
-  },
+  preview: { width: "100%", height: 160, borderRadius: 8, marginBottom: 10 },
+
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 12, marginTop: 4 },
 
   btn: {
     paddingHorizontal: 16,
@@ -511,16 +677,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  btnPrimary: { 
-    backgroundColor: GREEN 
-  },
-
-  btnSecondary: {
-    backgroundColor: "#eee" 
-  },
-
-  btnText: {
-    color: "#fff", fontWeight: "700" 
-  },
-
+  btnPrimary: { backgroundColor: GREEN },
+  btnSecondary: { backgroundColor: "#eee" },
+  btnDisabled: { backgroundColor: "#aaa" },
+  btnText: { color: "#fff", fontWeight: "700" },
 });

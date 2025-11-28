@@ -1,14 +1,14 @@
-import {initializeApp} from "firebase/app";
+import { initializeApp } from "firebase/app";
 import {
   getAuth,
   initializeAuth,
   setPersistence,
   browserLocalPersistence,
 } from "firebase/auth";
-
-import {getFirestore} from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {Platform} from "react-native";
+import { Platform } from "react-native";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getReactNativePersistence } = require("firebase/auth");
@@ -24,8 +24,7 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 
-// Android/iOS: use initializeAuth com AsyncStorage
-// Web: use getAuth + browserLocalPersistence
+// Auth: Android/iOS usa AsyncStorage, Web usa browserLocalPersistence
 export const auth =
   Platform.OS === "web"
     ? getAuth(app)
@@ -34,21 +33,11 @@ export const auth =
       });
 
 if (Platform.OS === "web") {
-  // garante persistência no navegador
   setPersistence(auth, browserLocalPersistence).catch(() => {});
 }
 
+// Firestore
 export const db = getFirestore(app);
 
-/**
- * SE o TypeScript reclamar que 'getReactNativePersistence' não existe:
- * 1) Confira a versão: npx expo install firebase (Expo 54 usa firebase 12.x)
- * 2) Como último recurso, troque a inicialização acima por este fallback:
- *
- * // eslint-disable-next-line @typescript-eslint/no-var-requires
- * const {initializeAuth: initAuth, getReactNativePersistence: getRNP} = require("firebase/auth");
- * export const auth =
- *   Platform.OS === "web"
- *     ? getAuth(app)
- *     : initAuth(app, {persistence: getRNP(AsyncStorage)});
- */
+// Storage (NOVO)
+export const storage = getStorage(app);
