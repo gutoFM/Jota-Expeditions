@@ -336,7 +336,7 @@ export default function Home({ navigation }: Props) {
   function SectionTitle() {
     return (
       <View style={styles.sectionTitleWrap}>
-        <Text style={styles.sectionTitle}>Últimas Aventuras</Text>
+        <Text style={styles.sectionTitle}>Últimas Notícias</Text>
       </View>
     );
   }
