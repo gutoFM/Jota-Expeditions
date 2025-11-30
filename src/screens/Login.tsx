@@ -16,6 +16,12 @@ import {useAuth} from "../contexts/AuthContext";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "Login">;
 
+// =====================
+// CONSTANTES - WHATSAPP
+// =====================
+const WHATSAPP_NUMBER = "5511964070127";
+const WHATSAPP_MESSAGE = "Olá! Estava no aplicativo e surgiu uma dúvida na autenticação. Poderia ajudar?";
+
 export default function Login() {
   const navigation = useNavigation<Nav>();
   const [email, setUsername] = useState("");
@@ -23,27 +29,26 @@ export default function Login() {
 
   const {signIn} = useAuth();
 
-async function handleLogin() {
-  const u = email.trim(); // ou username, conforme seu campo
-  const p = password.trim();
+  async function handleLogin() {
+    const u = email.trim();
+    const p = password.trim();
     if (!u || !p) {
       Alert.alert("Informe email e senha");
       return;
     }
     try {
       await signIn(u, p);
-      // ✅ NÃO navegue manualmente. O Routes vai renderizar Home ao detectar usuário logado.
     } catch (e: any) {
       Alert.alert("Falha no login", e?.message ?? "Tente novamente");
     }
   }
 
   function handleWhatsapp() {
-    // Abre conversa com o WhatsApp do Jota
-    // Troque o número pelo oficial do cliente
-    const phoneNumber = "5511964070127";
-    const url = `https://wa.me/${phoneNumber}`;
-    Linking.openURL(url);
+    const encodedMessage = encodeURIComponent(WHATSAPP_MESSAGE);
+    const url = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodedMessage}`;
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Erro", "Não foi possível abrir o WhatsApp.");
+    });
   }
 
   return (
@@ -51,53 +56,51 @@ async function handleLogin() {
       {/* Header Verde */}
       <View style={styles.header}>
         <Image 
-          source={require("../assets/logo-Jota.png")} // Coloque o logo do Jota aqui
+          source={require("../assets/logo-Jota.png")}
           style={styles.logo}
           resizeMode="contain"
         />
       </View>
 
       {/* Área de Login */}
-        <View style={styles.content}>
-            <Text style={styles.title}>Sua aventura está próxima,</Text>
-            <Text style={styles.subtitle}>Faça login em sua conta!</Text>
+      <View style={styles.content}>
+        <Text style={styles.title}>Sua aventura está próxima,</Text>
+        <Text style={styles.subtitle}>Faça login em sua conta!</Text>
 
-            <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setUsername}
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Senha"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+
+        <TouchableOpacity style={styles.button} onPress={handleLogin}>
+          <Text style={styles.buttonText}>Entrar</Text>
+        </TouchableOpacity>
+
+        <View style={styles.helpContainer}>
+          <Text style={styles.helpText}>
+            Precisa de ajuda?{"\n"}Nos chame no WhatsApp!
+          </Text>
+
+          <TouchableOpacity onPress={handleWhatsapp}>
+            <Image 
+              source={require("../assets/whatsapp.png")}
+              style={styles.whatsappIcon}
             />
-
-            <TextInput
-            style={styles.input}
-            placeholder="Senha"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-            />
-
-            <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Entrar</Text>
-            </TouchableOpacity>
-
-            {/* Loader (pode usar ActivityIndicator) */}
-            {/* <ActivityIndicator size="large" color="#00ff00" /> */}
-
-            <View style={styles.helpContainer}>
-                <Text style={styles.helpText}>
-                Precisa de ajuda?{"\n"}Nos chame no WhatsApp!
-                </Text>
-
-                <TouchableOpacity onPress={handleWhatsapp}>
-                <Image 
-                    source={require("../assets/whatsapp.png")} // Ícone do WhatsApp
-                    style={styles.whatsappIcon}
-                />
-                </TouchableOpacity>
-            </View>
-                
+          </TouchableOpacity>
         </View>
+      </View>
     </View>
   );
 }
@@ -107,7 +110,7 @@ const styles = StyleSheet.create({
 
   header: {
     height: 200,
-    backgroundColor: "#28a745", // Verde
+    backgroundColor: "#28a745",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -121,7 +124,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     padding: 20,
-    marginTop: 20, // Para "subir" a logo acima do conteúdo
+    marginTop: 20,
   },
 
   title: {

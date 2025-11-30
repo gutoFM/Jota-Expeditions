@@ -19,8 +19,15 @@ import type { DrawerParamList } from "../navigation/AppDrawer";
 type Props = DrawerScreenProps<DrawerParamList, "Contato">;
 
 const GREEN = "#1FA83D";
-const CARD_BG = "#E6F6EA"; // leve verde do card
+const CARD_BG = "#E6F6EA";
 const TEXT_MUTED = "#4E5A57";
+
+// =====================
+// CONSTANTES - WHATSAPP
+// =====================
+const WHATSAPP_NUMBER = "5511964070127";
+const WHATSAPP_MESSAGE = "Olá! Estava no aplicativo e surgiu uma dúvida. Poderia ajudar?";
+const WHATSAPP_URL = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
 
 type ContactItem = {
   id: string;
@@ -56,7 +63,7 @@ const items: ContactItem[] = [
     id: "whatsapp",
     title: "WhatsApp",
     subtitle: "+55 11 96407-0127",
-    url: "https://api.whatsapp.com/send?phone=5511964070127",
+    url: WHATSAPP_URL, // URL com mensagem padrão
     icon: { type: "fa", name: "whatsapp" },
     accent: "#25D366",
   },
