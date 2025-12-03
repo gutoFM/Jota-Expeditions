@@ -11,6 +11,7 @@ import Contact from "../screens/Contact";
 import About from "../screens/About";
 import Events from "../screens/Events";
 import Profile from "../screens/Profile";
+import ClubeJota from "../screens/ClubeJota";
 import { useAuth } from "../contexts/AuthContext";
 
 export type DrawerParamList = {
@@ -37,7 +38,7 @@ function CustomDrawerContent(props: any) {
     { name: "Contato", label: "Contato", icon: () => <Feather name="phone" size={22} color="#fff" /> },
     { name: "Sobre", label: "Sobre", icon: () => <Feather name="info" size={22} color="#fff" /> },
     { name: "Perfil", label: "Perfil", icon: () => <Feather name="user" size={22} color="#fff" /> },
-    { name: "Clube Jota", label: "Clube Jota", icon: () => <MaterialCommunityIcons name="account-group" size={22} color="#fff" /> },
+    { name: "Clube Jota", label: "Clube Jota", icon: () => <MaterialCommunityIcons name="crown" size={22} color="#FFD700" /> },
   ] as const;
 
   return (
@@ -88,7 +89,7 @@ export default function AppDrawer() {
       <Drawer.Screen name="Contato" component={Contact} />
       <Drawer.Screen name="Sobre" component={About} />
       <Drawer.Screen name="Perfil" component={Profile} />
-      <Drawer.Screen name="Clube Jota" component={() => null} />
+      <Drawer.Screen name="Clube Jota" component={ClubeJota} />
     </Drawer.Navigator>
   );
 }

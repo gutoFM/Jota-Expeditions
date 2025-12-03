@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -20,6 +21,20 @@ const GREEN = "#1FA83D";
 const SECTION_BG = "#274C34";
 const CARD_BG = "#F5F5F5";
 const TEXT_COLOR = "#000";
+
+// =====================
+// CONSTANTES - WHATSAPP
+// =====================
+const WHATSAPP_NUMBER = "5511992652120";
+const WHATSAPP_MESSAGE = "Olá! Estava no aplicativo Jota Expedições e me interessei pelo seu serviço. Poderia me auxiliar?";
+
+function handleWhatsapp() {
+  const encodedMessage = encodeURIComponent(WHATSAPP_MESSAGE);
+  const url = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodedMessage}`;
+  Linking.openURL(url).catch(() => {
+    Alert.alert("Erro", "Não foi possível abrir o WhatsApp.");
+  });
+}
 
 export default function About({ navigation }: Props) {
   function Header() {
@@ -113,7 +128,7 @@ export default function About({ navigation }: Props) {
           </View>
           <TouchableOpacity
             style={styles.card}
-            onPress={() => openLink("https://www.linkedin.com/in/augustofisco")}
+            onPress={handleWhatsapp}
             activeOpacity={0.8}
           >
             <FontAwesome5 name="code" size={20} color="#000" style={styles.cardIcon} />
