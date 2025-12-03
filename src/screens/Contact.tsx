@@ -169,7 +169,7 @@ export default function Contact({ navigation }: Props) {
         keyExtractor={(it) => it.id}
         ListHeaderComponent={
           <View style={styles.headerBlock}>
-            <Text style={styles.sectionTitle}>Nos Contate</Text>
+            <Text style={styles.sectionTitle}>Fale Conosco</Text>
             <Text style={styles.lead}>
               Não hesite em nos contatar quando tiver qualquer sugestão ou dúvida.
               Estamos aqui para melhorar a sua experiência no nosso
