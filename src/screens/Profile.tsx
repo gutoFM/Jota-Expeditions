@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -33,7 +33,7 @@ import { db, auth } from "../lib/firebase";
 type UserProfile = {
   fullName: string;
   email: string;
-  dob?: string; // DD/MM/AAAA (exibição) → salva como YYYY/MM/DD no banco
+  dob?: string;
   phone?: string;
   hasVehicle?: boolean;
   carModel?: string;
@@ -78,6 +78,18 @@ const CAR_MODELS = [
 ];
 
 // =====================
+// COMPONENTES AUXILIARES (FORA DO COMPONENTE PRINCIPAL)
+// =====================
+
+// Componente Field - definido fora para evitar re-renders
+const Field = React.memo(({ label, children }: { label: string; children: React.ReactNode }) => (
+  <View style={styles.field}>
+    <Text style={styles.fieldLabel}>{label}</Text>
+    {children}
+  </View>
+));
+
+// =====================
 // COMPONENTE PRINCIPAL
 // =====================
 export default function Profile({ navigation }: any) {
@@ -90,7 +102,7 @@ export default function Profile({ navigation }: any) {
 
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [dob, setDob] = useState(""); // Formato DD/MM/AAAA para exibição
+  const [dob, setDob] = useState("");
   const [phone, setPhone] = useState("");
   const [hasVehicle, setHasVehicle] = useState(false);
   const [carModel, setCarModel] = useState("");
@@ -115,26 +127,22 @@ export default function Profile({ navigation }: any) {
 
     (async () => {
       try {
-        // CORREÇÃO: Buscar na collection "profiles", não "users"
         const ref = doc(db, "profiles", uid);
         const snap = await getDoc(ref);
 
         if (snap.exists()) {
           const data = snap.data() as UserProfile;
 
-          // Carregar dados existentes
           setEmail(data.email || user?.email || "");
           setFullName(data.fullName || "");
           setPhone(formatPhoneDisplay(data.phone || ""));
           setHasVehicle(data.hasVehicle === true);
           setCarModel(data.carModel || "");
 
-          // Converter DOB do formato do banco (YYYY/MM/DD) para exibição (DD/MM/AAAA)
           if (data.dob) {
             setDob(convertDobToDisplay(data.dob));
           }
         } else {
-          // Perfil não existe ainda - criar com dados básicos
           setEmail(user?.email || "");
           setFullName("");
           setPhone("");
@@ -144,7 +152,6 @@ export default function Profile({ navigation }: any) {
         }
       } catch (e: any) {
         console.log("profile load error:", e);
-        // Se for erro de permissão, ainda assim carregar o email do Auth
         setEmail(user?.email || "");
         Alert.alert("Aviso", "Não foi possível carregar todos os dados do perfil. Complete seu cadastro.");
       } finally {
@@ -154,10 +161,9 @@ export default function Profile({ navigation }: any) {
   }, [uid]);
 
   // =====================
-  // FUNÇÕES DE FORMATAÇÃO
+  // FUNÇÕES DE FORMATAÇÃO (useCallback para evitar re-renders)
   // =====================
 
-  // Formatar telefone para exibição: 11964070127 → (11) 96407-0127
   function formatPhoneDisplay(phone: string): string {
     const digits = phone.replace(/\D/g, "");
     if (digits.length === 11) {
@@ -168,13 +174,11 @@ export default function Profile({ navigation }: any) {
     return digits;
   }
 
-  // Extrair apenas dígitos do telefone para salvar
   function extractPhoneDigits(phone: string): string {
     return phone.replace(/\D/g, "");
   }
 
-  // Formatar telefone enquanto digita
-  function handlePhoneChange(text: string) {
+  const handlePhoneChange = useCallback((text: string) => {
     const digits = text.replace(/\D/g, "").slice(0, 11);
     
     if (digits.length <= 2) {
@@ -184,20 +188,17 @@ export default function Profile({ navigation }: any) {
     } else {
       setPhone(`(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`);
     }
-  }
+  }, []);
 
-  // Converter DOB do banco (YYYY/MM/DD ou YYYY-MM-DD) para exibição (DD/MM/AAAA)
   function convertDobToDisplay(dbDob: string): string {
-    // Aceita tanto YYYY/MM/DD quanto YYYY-MM-DD
     const match = dbDob.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
     if (match) {
       const [, year, month, day] = match;
       return `${day}/${month}/${year}`;
     }
-    return dbDob; // Retorna como está se não conseguir converter
+    return dbDob;
   }
 
-  // Converter DOB de exibição (DD/MM/AAAA) para banco (YYYY/MM/DD)
   function convertDobToStorage(displayDob: string): string {
     const match = displayDob.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (match) {
@@ -207,8 +208,7 @@ export default function Profile({ navigation }: any) {
     return displayDob;
   }
 
-  // Formatar data enquanto digita (DD/MM/AAAA)
-  function handleDobChange(text: string) {
+  const handleDobChange = useCallback((text: string) => {
     const digits = text.replace(/\D/g, "").slice(0, 8);
     
     if (digits.length <= 2) {
@@ -218,11 +218,10 @@ export default function Profile({ navigation }: any) {
     } else {
       setDob(`${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`);
     }
-  }
+  }, []);
 
-  // Validar data DD/MM/AAAA
   function isValidDob(dob: string): boolean {
-    if (!dob) return true; // Opcional
+    if (!dob) return true;
     const match = dob.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (!match) return false;
     
@@ -235,12 +234,10 @@ export default function Profile({ navigation }: any) {
     if (d < 1 || d > 31) return false;
     if (y < 1900 || y > new Date().getFullYear()) return false;
     
-    // Verificar data válida
     const date = new Date(y, m - 1, d);
     return date.getDate() === d && date.getMonth() === m - 1 && date.getFullYear() === y;
   }
 
-  // Validar email
   function isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
@@ -251,7 +248,6 @@ export default function Profile({ navigation }: any) {
   async function handleSave() {
     if (!uid) return;
 
-    // Validações
     if (!fullName.trim()) {
       Alert.alert("Atenção", "Preencha seu nome completo.");
       return;
@@ -295,10 +291,8 @@ export default function Profile({ navigation }: any) {
       };
 
       if (snap.exists()) {
-        // Atualizar documento existente (não sobrescreve role e isActive)
         await updateDoc(ref, profileData);
       } else {
-        // Criar novo documento
         await setDoc(ref, {
           ...profileData,
           createdAt: serverTimestamp(),
@@ -341,11 +335,8 @@ export default function Profile({ navigation }: any) {
         throw new Error("Usuário não autenticado.");
       }
 
-      // Reautenticar
       const credential = EmailAuthProvider.credential(currentUser.email, currPwd);
       await reauthenticateWithCredential(currentUser, credential);
-
-      // Alterar senha
       await updatePassword(currentUser, newPwd);
 
       setPwdModal(false);
@@ -394,10 +385,45 @@ export default function Profile({ navigation }: any) {
   }
 
   // =====================
-  // COMPONENTES DE UI
+  // RENDER - LOADING
   // =====================
-  function Header() {
+  if (loading) {
     return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.headerIconLeft}
+            onPress={() => navigation.openDrawer?.()}
+            activeOpacity={0.7}
+          >
+            <Feather name="menu" size={26} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Perfil</Text>
+          <View style={styles.headerIconRight}>
+            <Image
+              source={require("../assets/logo-Jota.png")}
+              style={styles.headerLogo}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={GREEN} />
+          <Text style={styles.loadingText}>Carregando perfil...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // =====================
+  // RENDER - FORMULÁRIO
+  // =====================
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.headerIconLeft}
@@ -415,47 +441,15 @@ export default function Profile({ navigation }: any) {
           />
         </View>
       </View>
-    );
-  }
-
-  function Field({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>{label}</Text>
-        {children}
-      </View>
-    );
-  }
-
-  // =====================
-  // RENDER - LOADING
-  // =====================
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" />
-        <Header />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={GREEN} />
-          <Text style={styles.loadingText}>Carregando perfil...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // =====================
-  // RENDER - FORMULÁRIO
-  // =====================
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <Header />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.pageTitle}>Editar Perfil</Text>
 
           {/* Painel de dados */}
@@ -479,6 +473,7 @@ export default function Profile({ navigation }: any) {
                 onChangeText={setFullName}
                 placeholder="Seu nome completo"
                 style={styles.input}
+                autoCorrect={false}
               />
             </Field>
 
@@ -589,6 +584,7 @@ export default function Profile({ navigation }: any) {
               data={CAR_MODELS}
               keyExtractor={(item) => item}
               style={styles.modelList}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity
                   onPress={() => handleSelectModel(item)}
@@ -779,12 +775,13 @@ const styles = StyleSheet.create({
     height: 46,
     backgroundColor: "#fff",
     justifyContent: "center",
+    fontSize: 16,
   },
 
   inputDisabled: {
     backgroundColor: "#f0f0f0",
   },
-  inputDisabledText: { color: "#666" },
+  inputDisabledText: { color: "#666", fontSize: 16 },
 
   hint: { fontSize: 11, color: "#888", marginTop: 4 },
 
