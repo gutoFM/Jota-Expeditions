@@ -12,7 +12,8 @@ import {
   Alert,
   Image 
 } from "react-native";
-import {useAuth} from "../contexts/AuthContext";
+import { Feather } from "@expo/vector-icons";
+import { useAuth } from "../contexts/AuthContext";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "Login">;
 
@@ -20,20 +21,21 @@ type Nav = NativeStackNavigationProp<RootStackParamList, "Login">;
 // CONSTANTES - WHATSAPP
 // =====================
 const WHATSAPP_NUMBER = "5511964070127";
-const WHATSAPP_MESSAGE = "Olá! Estava no aplicativo e surgiu uma dúvida na autenticação. Poderia ajudar?";
+const WHATSAPP_MESSAGE = "Olá! Estava no aplicativo e surgiu uma dúvida sobre a autenticação. Poderia ajudar?";
 
 export default function Login() {
   const navigation = useNavigation<Nav>();
-  const [email, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  const {signIn} = useAuth();
+  const { signIn } = useAuth();
 
   async function handleLogin() {
     const u = email.trim();
     const p = password.trim();
     if (!u || !p) {
-      Alert.alert("Informe email e senha");
+      Alert.alert("Atenção", "Informe email e senha.");
       return;
     }
     try {
@@ -71,18 +73,32 @@ export default function Login() {
           style={styles.input}
           placeholder="Email"
           value={email}
-          onChangeText={setUsername}
+          onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
         />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+        {/* Campo de senha com ícone de olho */}
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Senha"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setShowPassword(!showPassword)}
+            activeOpacity={0.7}
+          >
+            <Feather 
+              name={showPassword ? "eye" : "eye-off"} 
+              size={22} 
+              color="#666" 
+            />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Entrar</Text>
@@ -144,20 +160,47 @@ const styles = StyleSheet.create({
 
   input: {
     width: "90%",
-    height: 45,
+    height: 50,
     borderWidth: 1,
     borderColor: "#ccc",
-    borderRadius: 6,
+    borderRadius: 8,
     marginBottom: 12,
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     backgroundColor: "#f9f9f9",
+    fontSize: 16,
+  },
+
+  // Container do campo de senha com ícone
+  passwordContainer: {
+    width: "90%",
+    height: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    marginBottom: 12,
+    backgroundColor: "#f9f9f9",
+  },
+
+  passwordInput: {
+    flex: 1,
+    height: "100%",
+    paddingHorizontal: 14,
+    fontSize: 16,
+  },
+
+  eyeButton: {
+    paddingHorizontal: 14,
+    height: "100%",
+    justifyContent: "center",
   },
 
   button: {
     width: "90%",
-    height: 45,
-    backgroundColor: "#999",
-    borderRadius: 6,
+    height: 50,
+    backgroundColor: "#28a745",
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,
@@ -166,14 +209,14 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: 16,
+    fontSize: 18,
   },
 
   helpContainer: {
     flex: 1,
     alignItems: "center",
     padding: 20,
-    marginTop: 80,
+    marginTop: 60,
   },
 
   helpText: {
